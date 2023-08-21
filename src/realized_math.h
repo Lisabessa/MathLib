@@ -22,7 +22,7 @@ long double realized_sqrt(double x);
 
 // Raises a number to the given power
 long double realized_pow(double base, double exp);
-
+ 
 // Returns e raised to given power
 long double realized_exp(double x);
 
