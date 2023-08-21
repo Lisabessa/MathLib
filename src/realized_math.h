@@ -57,7 +57,7 @@ long double realized_atan(double x);
 long double realized_log(double x);
 
 // Checks if x is infinite
-int realized_isinf(double x);
+int realized_is_inf(double x);
 
 // Checks if x is NaN
-int realized_isnan(double x);
+int realized_is_nan(double x);
