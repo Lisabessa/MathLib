@@ -1,53 +1,61 @@
-CC=gcc
-CFLAGS=-Wall -Werror -Wextra -g
-LDFLAGS=-lcheck -pthread -lgcov -lm
+CC = gcc
+CFLAGS = -Wall -Werror -Wextra -std=c11
+LDFLAGS = -lcheck -lm -lpthread
+
+SOURCES = tests.c
+EXECUTABLE = tests
+TEST_FLAGS = --coverage $(LDFLAGS) 
+
+FUNC_DIR = lib_functions
+OBJ_DIR = obj
+GCOV_DIR = report
+GCOV_OBJ_DIR = obj/$(GCOV_DIR)
+
+SRCS = $(shell find $(FUNC_DIR) -maxdepth 1 -iname '*.c')
+OBJSNAME = $(shell basename -a $(SRCS))
+OBJS = $(addprefix $(OBJ_DIR)/,$(OBJSNAME:.c=.o))
+
 ifeq ($(shell uname), Linux)
-	LDFLAGS+=-lsubunit
+	LDFLAGS += -lsubunit -lrt
+	TEST_FLAGS += -lsubunit -lrt
+	OPEN=echo 'report: MathLib/src/$(GCOV_DIR)/index.html'
+else
+	OPEN=open ./$(GCOV_DIR)/index.html
 endif
 
-GCOVFLAGS=--coverage
+all: clean math.a
 
-OBJS_DIR=obj
-
-GCOV_REPORT=gcov_report
-GCOV_DIR=gcov
-GCOV_OBJ_DIR=$(GCOV_DIR)/$(OBJS_DIR)
-
-LIB_SRCS=realized_math.c
-LIB_OBJS=$(patsubst %.c,$(OBJS_DIR)/%.o,$(LIB_SRCS))
-LIB_OBJS_GCOV=$(patsubst %.c,$(GCOV_OBJ_DIR)/%.o,$(LIB_SRCS))
-LIB=realized_math.a
-
-TEST=test
-TEST_SRCS=test.c
-
-all: $(LIB)
-
-$(TEST): $(TEST_SRCS) $(LIB_OBJS_GCOV)
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
-
-$(LIB): $(LIB_OBJS)
-	ar rcs $(LIB) $^
-
-$(OBJS_DIR)/%.o: %.c
-	mkdir -p $(OBJS_DIR)
+./$(OBJ_DIR)/%.o:%.c
+	@mkdir -p $(OBJ_DIR) 
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(GCOV_OBJ_DIR)/%.o: %.c
-	mkdir -p $(GCOV_OBJ_DIR)
-	$(CC) $(CFLAGS) $(GCOVFLAGS) -c $< -o $@
+./$(OBJ_DIR)/%.o:*/%.c
+	@mkdir -p $(OBJ_DIR) 
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(GCOV_REPORT): $(TEST)
+math.a: $(OBJS)
+	ar rcs $@ $^
+	ranlib math.a
+
+test: math.a check
+	$(CC) $(CFLAGS) $(SOURCES) math.a -o $(EXECUTABLE) $(LDFLAGS)
+	./$(EXECUTABLE)
+
+gcov_report: check
 	mkdir -p $(GCOV_DIR)
-	./test > /dev/null 2>&1 || true
-	gcovr --html --html-details -o $(GCOV_DIR)/$(GCOV_REPORT).html --filter $(LIB_SRCS)
+	$(CC) $(SRCS) $(SOURCES) -o greport $(TEST_FLAGS)
+	./greport
+	lcov -t "math" -o math.info -c -d .
+	genhtml -o ./$(GCOV_DIR) math.info
+	$(OPEN)
 
-valgrind:
-	valgrind --leak-check=full --show-leak-kinds=all ./$(TEST)
-
-clean:
-	rm -rf $(OBJS_DIR)/* $(LIB) $(TEST) $(GCOV_DIR)/*
+check:
+	checkmk clean_mode=1 test_check/headers/*.check test_check/*.check > $(SOURCES)
+	cp -f ../materials/linters/.clang-format ./.clang-format
+	clang-format -i *.c *.h
+	rm .clang-format
 
 rebuild: clean all
 
-.PHONY: all clean rebuild $(GCOV_REPORT) valgrind
+clean:
+	rm -rf $(OBJ_DIR)/* $(OBJ_DIR)/*.* $(EXECUTABLE) math.a *.gcda *.gcno *.info $(GCOV_DIR) check_math.c greport $(OBJ_DIR)
